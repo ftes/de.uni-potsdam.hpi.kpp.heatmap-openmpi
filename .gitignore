@@ -1,0 +1,25 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+
+# compiled executable
+heatmap
+heatmap.tar
+
+# output file
+*.txt
+*.csv
+
+# Netbeans
+nbproject/
+*.cbp
