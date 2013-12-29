@@ -232,7 +232,7 @@ void writeOutput(float data[])
 }
 
 
-
+/*
 //Base64
 static const std::string base64_chars =
              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -309,8 +309,6 @@ string base64_encode_file(string fileName) {
   result = fread (buffer,1,lSize,pFile);
   if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
 
-  /* the whole file is now loaded in the memory buffer. */
-
   // terminate
   fclose (pFile);
 
@@ -330,7 +328,7 @@ void printBinaries(cl::Program program)
         cout << binaries.substr(0, len) << "\n";
         binaries = binaries.substr(len, binaries.length());
     }
-}
+}*/
 
 
 
@@ -384,7 +382,8 @@ int main(int argc, char* argv[])
 
     //get device
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
-    cout << "Using device: " << device.getInfo<CL_DEVICE_NAME>() << "\n";
+    string deviceName = device.getInfo<CL_DEVICE_NAME>();
+    cout << "Using device: " << deviceName.c_str() << "\n";
 
     //does device have image support?
     cl_bool result;
@@ -408,7 +407,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    printBinaries(program);
+    //printBinaries(program);
     //writeBinaries(program, "binaries.bin");
 
     // Create an OpenCL Image for the hotspots, shall be copied to device
