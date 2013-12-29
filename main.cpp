@@ -74,24 +74,27 @@ int main()
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
     cout << "Using device: " << device.getInfo<CL_DEVICE_NAME>() << "\n";
 
-    //get
+    //get context for communicating with device
     cl::Context context = getContext(device);
 
+    //read kernel (program for device) from file
     cl::Program::Sources sources = readSources("kernel.cl");
 
-    cl::Program program(context,sources);
-    if(program.build( {device})!=CL_SUCCESS)
+    //compile the program for the device
+    cl::Program program(context, sources);
+    if(program.build( {device}) != CL_SUCCESS)
     {
         std::cout<<" Error building: "<<program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device)<<"\n";
         exit(1);
     }
 
 
-    // create buffers on the device
+    //create buffers on the device
     cl::Buffer buffer_A(context,CL_MEM_READ_ONLY,sizeof(int)*10);
     cl::Buffer buffer_B(context,CL_MEM_READ_ONLY,sizeof(int)*10);
     cl::Buffer buffer_C(context,CL_MEM_WRITE_ONLY,sizeof(int)*10);
 
+    //sample source data
     int A[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     int B[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
 
@@ -102,6 +105,7 @@ int main()
     queue.enqueueWriteBuffer(buffer_A,CL_TRUE,0,sizeof(int)*10,A);
     queue.enqueueWriteBuffer(buffer_B,CL_TRUE,0,sizeof(int)*10,B);
 
+    //push kernel to the device, with the buffers as parameter values
     auto simple_add = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&>(program,"simple_add");
     cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(10),cl::NullRange);
     simple_add(eargs, buffer_A,buffer_B,buffer_C).wait();
@@ -110,6 +114,7 @@ int main()
     //read result C from the device to array C
     queue.enqueueReadBuffer(buffer_C,CL_TRUE,0,sizeof(int)*10,C);
 
+    //output the result
     cout<<" result: \n";
     for(int i=0; i<10; i++)
     {
