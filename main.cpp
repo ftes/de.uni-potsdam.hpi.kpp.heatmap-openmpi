@@ -254,6 +254,7 @@ int main(int argc, char* argv[])
 
 
     //perform rounds
+    //the images remain in the device memory instead of reading and writing to host memory every round
     for (int i=0; i<numberOfRounds; i++) {
         //swap heatmaps
         cl::Image2D *tmp = oldHeatmapImage;
