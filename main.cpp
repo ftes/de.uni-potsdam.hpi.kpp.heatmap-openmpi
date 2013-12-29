@@ -6,16 +6,18 @@ using namespace std;
 
 string readFile(string filename)
 {
-    std::ifstream file(filename.c_str());
-    std::string content((std::istreambuf_iterator<char>(file)),
-                     std::istreambuf_iterator<char>());
+    ifstream file(filename.c_str());
+    string *content = new string((istreambuf_iterator<char>(file)),
+        istreambuf_iterator<char>());
 
-    return content;
+    return *content;
 }
 
-void readSources(cl::Program::Sources *sources, string fileName) {
+cl::Program::Sources readSources(string fileName) {
     string prog = readFile(fileName);
-    sources->push_back({prog.c_str(), prog.length()});
+    cl::Program::Sources sources;
+    sources.push_back({prog.c_str(), prog.length()});
+    return sources;
 }
 
 vector<cl::Platform> getPlatforms()
@@ -62,9 +64,7 @@ int main()
     cl::Device device = getDevices(getPlatforms()[0])[0];
     cl::Context context = getContext(device);
 
-    cl::Program::Sources sources;
-    string prog = readFile("kernel.cl");
-    sources.push_back({prog.c_str(), prog.length()});
+    cl::Program::Sources sources = readSources("kernel.cl");
 
     cl::Program program(context,sources);
     if(program.build( {device})!=CL_SUCCESS)
