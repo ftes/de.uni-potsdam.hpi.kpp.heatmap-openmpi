@@ -320,7 +320,16 @@ string base64_encode_file(string fileName) {
 void printBinaries(cl::Program program)
 {
     writeBinaries(program, "tmp.bin");
-    cout << base64_encode_file("tmp.bin") << "\n";
+    string binaries = base64_encode_file("tmp.bin");
+    int len = 100;
+    while (true) {
+        if (len > binaries.length()) {
+            cout << binaries << "\n";
+            break;
+        }
+        cout << binaries.substr(0, len) << "\n";
+        binaries = binaries.substr(len, binaries.length());
+    }
 }
 
 
@@ -388,7 +397,7 @@ int main(int argc, char* argv[])
 
     //read kernel (program for device) from file
     cl::Program::Sources sources = readSources("kernel.cl");
-    //cl::Program::Binaries binaries = readBinaries("binaries.bin");
+    //cl::Program::Binaries binaries = readBinaries("base64.bin");
 
     //compile the program for the device
     cl::Program program(context, sources);
