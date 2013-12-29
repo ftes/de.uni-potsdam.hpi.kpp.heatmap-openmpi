@@ -123,15 +123,20 @@ int main()
     int width = 2;
     int height = 2;
     float data[] = {0,1,0,1};
-    //unsigned int hotspotsData[] = {0, 0, 0, 2, 0, 0, 0, 2};
+    unsigned int hotspotsStartData[] = {0, 0, 0, 0};
+    unsigned int hotspotsEndData[] = {2,0,0,0};
 
     // Create an OpenCL Image for the hotspots, shall be copied to device
-//    cl::Image2D hotspots = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-//        cl::ImageFormat(CL_RG, CL_UNSIGNED_INT16), width, height, 0, hotspotsData);
+    cl::Image2D hotspotsStart = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        cl::ImageFormat(CL_R, CL_UNSIGNED_INT32), width, height, 0, hotspotsStartData);
+
+    // Create an OpenCL Image for the hotspots, shall be copied to device
+    cl::Image2D hotspotsEnd = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        cl::ImageFormat(CL_R, CL_UNSIGNED_INT32), width, height, 0, hotspotsEndData);
 
     // Create an OpenCL Image for the input data, shall be copied to device
     cl::Image2D in = cl::Image2D(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-        cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0);
+        cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0, data);
 
     // Create an OpenCL Image for the output data
     cl::Image2D out = cl::Image2D(context, CL_MEM_READ_WRITE,
@@ -141,10 +146,10 @@ int main()
     cl::CommandQueue queue(context, device);
 
     //push kernel to the device, with the buffers as parameter values
-    auto kernel = cl::make_kernel<cl::Image2D, cl::Image2D>(program, "heatmap");
+    auto kernel = cl::make_kernel<unsigned int, cl::Image2D, cl::Image2D, cl::Image2D, cl::Image2D>(program, "heatmap");
     //ranges: global offset, global (global number of work items), local (number of work items per work group)
     cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(width, height), cl::NullRange);
-    kernel(eargs, in, out).wait();
+    kernel(eargs, 1, hotspotsStart, hotspotsEnd, in, out).wait();
 
     //read output image back from device
     cl::size_t<3> origin, region;

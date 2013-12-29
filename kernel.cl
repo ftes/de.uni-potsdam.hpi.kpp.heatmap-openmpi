@@ -6,7 +6,7 @@
 __constant sampler_t dataSampler = CLK_ADDRESS_CLAMP;
 __constant sampler_t hotspotsSampler = CLK_ADDRESS_NONE;
 
-__kernel void heatmap(//int nextRoundNumber, __read_only image2d_t hotspots,
+__kernel void heatmap(unsigned int nextRoundNumber, __read_only image2d_t hotspotsStart, __read_only image2d_t hotspotsEnd,
     __read_only image2d_t in, __write_only image2d_t out){
 
     const int2 pos = {get_global_id(0), get_global_id(1)};
@@ -19,13 +19,13 @@ __kernel void heatmap(//int nextRoundNumber, __read_only image2d_t hotspots,
     }
 
     //set hotspots for next round
-    //int start = read_imageui(hotspots, hotspotsSampler, pos).x;
-    //int end = read_imageui(hotspots, hotspotsSampler, pos).y;
-    //if (nextRoundNumber >= start && nextRoundNumber < end) {
-    //    sum = 1.f;
-    //} else {
+    unsigned int start = read_imageui(hotspotsStart, hotspotsSampler, pos).x;
+    unsigned int end = read_imageui(hotspotsEnd, hotspotsSampler, pos).x;
+    if (nextRoundNumber >= start && nextRoundNumber < end) {
+        sum = 1.f;
+    } else {
         sum = sum / 9.f;
-    //}
+    }
 
     write_imagef(out, pos, (float4)(sum, 0., 0., 0.));
 }
