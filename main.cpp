@@ -135,11 +135,11 @@ int main()
         cl::ImageFormat(CL_R, CL_UNSIGNED_INT32), width, height, 0, hotspotsEndData);
 
     // Create an OpenCL Image for the input data, shall be copied to device
-    cl::Image2D in = cl::Image2D(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+    cl::Image2D *in = new cl::Image2D(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
         cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0, data);
 
     // Create an OpenCL Image for the output data
-    cl::Image2D out = cl::Image2D(context, CL_MEM_READ_WRITE,
+    cl::Image2D *out = new cl::Image2D(context, CL_MEM_READ_WRITE,
         cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0);
 
     //create queue to which we will push commands for the device.
@@ -149,7 +149,7 @@ int main()
     auto kernel = cl::make_kernel<unsigned int, cl::Image2D, cl::Image2D, cl::Image2D, cl::Image2D>(program, "heatmap");
     //ranges: global offset, global (global number of work items), local (number of work items per work group)
     cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(width, height), cl::NullRange);
-    kernel(eargs, 1, hotspotsStart, hotspotsEnd, in, out).wait();
+    kernel(eargs, 1, hotspotsStart, hotspotsEnd, *in, *out).wait();
 
     //read output image back from device
     cl::size_t<3> origin, region;
