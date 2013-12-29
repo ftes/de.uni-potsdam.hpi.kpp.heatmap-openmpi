@@ -31,7 +31,10 @@ vector<cl::Platform> getPlatforms()
 vector<cl::Device> getDevices(cl::Platform platform, cl_device_type deviceType = CL_DEVICE_TYPE_ALL)
 {
     vector<cl::Device> all_devices;
-    platform.getDevices(deviceType, &all_devices);
+    if (platform.getDevices(deviceType, &all_devices) != CL_SUCCESS) {
+        cout << "Preferred device type not found!\n";
+        platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
+    }
     return all_devices;
 }
 
@@ -55,8 +58,9 @@ void listDevices()
 
 int main()
 {
-    listDevices();
-    cl::Device device = getDevices(getPlatforms()[0])[0];
+    //listDevices();
+    cl::Device device = getDevices(getPlatforms()[0], CL_DEVICE_TYPE_GPU)[0];
+    cout << "Using device: " << device.getInfo<CL_DEVICE_NAME>() << "\n";
     cl::Context context = getContext(device);
 
     cl::Program::Sources sources = readSources("kernel.cl");
