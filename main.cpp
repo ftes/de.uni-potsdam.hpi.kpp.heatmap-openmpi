@@ -1,6 +1,6 @@
 #include <iostream>
 #include <fstream>
-#include <CL/cl.hpp>
+#include "cl.hpp"
 
 using namespace std;
 
