@@ -8,15 +8,16 @@ string readFile(string filename)
 {
     ifstream file(filename.c_str());
     string *content = new string((istreambuf_iterator<char>(file)),
-        istreambuf_iterator<char>());
+                                 istreambuf_iterator<char>());
 
     return *content;
 }
 
-cl::Program::Sources readSources(string fileName) {
+cl::Program::Sources readSources(string fileName)
+{
     string prog = readFile(fileName);
     cl::Program::Sources sources;
-    sources.push_back({prog.c_str(), prog.length()});
+    sources.push_back( {prog.c_str(), prog.length()});
     return sources;
 }
 
@@ -32,12 +33,6 @@ vector<cl::Device> getDevices(cl::Platform platform, cl_device_type deviceType =
     vector<cl::Device> all_devices;
     platform.getDevices(deviceType, &all_devices);
     return all_devices;
-}
-
-cl::Context getContext(cl_device_type deviceType = CL_DEVICE_TYPE_GPU)
-{
-    cl::Context context(deviceType);
-    return context;
 }
 
 cl::Context getContext(cl::Device device)
@@ -97,11 +92,12 @@ int main()
     //read result C from the device to array C
     queue.enqueueReadBuffer(buffer_C,CL_TRUE,0,sizeof(int)*10,C);
 
-    std::cout<<" result: \n";
+    cout<<" result: \n";
     for(int i=0; i<10; i++)
     {
-        std::cout<<C[i]<<" ";
+        cout<<C[i]<<" ";
     }
+    cout << "\n";
 
     return 0;
 }
