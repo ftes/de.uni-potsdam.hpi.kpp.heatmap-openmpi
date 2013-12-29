@@ -2,8 +2,24 @@
 #include <fstream>
 #include "cl.hpp"
 
+#include "Hotspot.h"
+#include "Coordinate.h"
+
+/*int width;
+int height;
+int numberOfRounds;
+int currentRound = 0;
+bool writeCoords = false;
+vector<Coordinate> coords;
+vector<Hotspot> hotspots;
+vector<vector<vector<Coordinate>>> *ranges;
+
+string outFile = "output.txt";*/
+
 using namespace std;
 
+
+// OpenCL functions
 string readFile(string filename)
 {
     ifstream file(filename.c_str());
@@ -66,13 +82,29 @@ void listDevices()
     }
 }
 
+
+
+
+
+
+// Heatmap functions
+
 int main()
 {
+    //TODO set hotspots
+
+
     //listDevices();
 
     //get device
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
     cout << "Using device: " << device.getInfo<CL_DEVICE_NAME>() << "\n";
+
+    //does device have image support?
+    cl_bool result;
+    device.getInfo(CL_DEVICE_IMAGE_SUPPORT, &result);
+    if (! result)
+        cout << "No image support!\n";
 
     //get context for communicating with device
     cl::Context context = getContext(device);
@@ -88,39 +120,39 @@ int main()
         exit(1);
     }
 
+    int width = 2;
+    int height = 2;
+    float data[] = {0,1,0,1};
+    //unsigned int hotspotsData[] = {0, 0, 0, 2, 0, 0, 0, 2};
 
-    //create buffers on the device
-    cl::Buffer buffer_A(context,CL_MEM_READ_ONLY,sizeof(int)*10);
-    cl::Buffer buffer_B(context,CL_MEM_READ_ONLY,sizeof(int)*10);
-    cl::Buffer buffer_C(context,CL_MEM_WRITE_ONLY,sizeof(int)*10);
+    // Create an OpenCL Image for the hotspots, shall be copied to device
+//    cl::Image2D hotspots = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+//        cl::ImageFormat(CL_RG, CL_UNSIGNED_INT16), width, height, 0, hotspotsData);
 
-    //sample source data
-    int A[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    int B[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
+    // Create an OpenCL Image for the input data, shall be copied to device
+    cl::Image2D in = cl::Image2D(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+        cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0);
+
+    // Create an OpenCL Image for the output data
+    cl::Image2D out = cl::Image2D(context, CL_MEM_READ_WRITE,
+        cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0);
 
     //create queue to which we will push commands for the device.
     cl::CommandQueue queue(context, device);
 
-    //write arrays A and B to the device
-    queue.enqueueWriteBuffer(buffer_A,CL_TRUE,0,sizeof(int)*10,A);
-    queue.enqueueWriteBuffer(buffer_B,CL_TRUE,0,sizeof(int)*10,B);
-
     //push kernel to the device, with the buffers as parameter values
-    auto simple_add = cl::make_kernel<cl::Buffer&, cl::Buffer&, cl::Buffer&>(program,"simple_add");
-    cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(10),cl::NullRange);
-    simple_add(eargs, buffer_A,buffer_B,buffer_C).wait();
+    auto kernel = cl::make_kernel<cl::Image2D, cl::Image2D>(program, "heatmap");
+    //ranges: global offset, global (global number of work items), local (number of work items per work group)
+    cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(width, height), cl::NullRange);
+    kernel(eargs, in, out).wait();
 
-    int C[10];
-    //read result C from the device to array C
-    queue.enqueueReadBuffer(buffer_C,CL_TRUE,0,sizeof(int)*10,C);
+    //read output image back from device
+    cl::size_t<3> origin, region;
+    origin[0] = 0; origin[1] = 0; origin[2] = 0;
+    region[0] = width; region[1] = height; region[2] = 1;
+    queue.enqueueReadImage(out, true, origin, region, 0, 0, data);
 
-    //output the result
-    cout<<" result: \n";
-    for(int i=0; i<10; i++)
-    {
-        cout<<C[i]<<" ";
-    }
-    cout << "\n";
+    cout << data[0] << "\n";
 
     return 0;
 }
