@@ -3,6 +3,7 @@
 #include "cl.hpp"
 #include <sstream>
 #include <math.h>
+#include <sys/time.h>
 
 #include "Hotspot.h"
 #include "Coordinate.h"
@@ -251,7 +252,8 @@ int main(int argc, char* argv[])
     cl::Image2D *oldHeatmapImage = &otherStartImage;
     cl::Image2D *newHeatmapImage = &startImage;
 
-
+    timeval start, end;
+    gettimeofday(&start, 0);
 
     //perform rounds
     //the images remain in the device memory instead of reading and writing to host memory every round
@@ -264,6 +266,13 @@ int main(int argc, char* argv[])
         //run kernel
         kernel(eargs, i+1, hotspotsStartImage, hotspotsEndImage, *oldHeatmapImage, *newHeatmapImage).wait();
     }
+
+    gettimeofday(&end, 0);
+    long sec = end.tv_sec - start.tv_sec;
+    long usec = end.tv_usec - start.tv_usec;
+    float elapsed = sec + usec / 1000000.f;
+
+    cout << "Runtime: " << elapsed << "\n";
 
     //read output back from device
     cl::size_t<3> origin, region;
