@@ -115,10 +115,19 @@ string getOutputValue(double cell) {
     return value;
 }
 
-void printHeatmap(vector<vector<double >> *heatmap) {
-    for (vector<double> row : *heatmap) {
-        for (double cell : row) {
-            printf("%s ", getOutputValue(cell).c_str());
+void printData(unsigned int data[]) {
+    for (int j=0; j<height; j++) {
+        for (int i=0; i<width; i++) {
+            printf("%3d ", data[i + j*width]);
+        }
+        printf("\n");
+    }
+}
+
+void printHeatmap(float data[]) {
+    for (int j=0; j<height; j++) {
+        for (int i=0; i<width; i++) {
+            printf("%s ", getOutputValue(data[i + j*width]).c_str());
         }
         printf("\n");
     }
@@ -132,11 +141,8 @@ void writeOutput(float data[]) {
             for (int i=0; i<width; i++) {
             	string out = getOutputValue(data[i + j * width]);
                 output << out.c_str();
-
-                if (i == width - 1) {
-                	output << "\n";
-                }
             }
+            output << "\n";
         }
     } else {
         for (Coordinate coord : coords) {
@@ -170,8 +176,11 @@ int main(int argc, char* argv[])
     }
 
     unsigned int hotspotsStartData[width * height];
+    fill_n(hotspotsStartData, width*height, 0);
     unsigned int hotspotsEndData[width * height];
+    fill_n(hotspotsEndData, width*height, 0);
     float startData[width * height];
+    fill_n(startData, width*height, 0.f);
 
     //read hotspots
     for (vector<int> line : parseCsv(hotspotsFile)) {
@@ -252,7 +261,7 @@ int main(int argc, char* argv[])
         newHeatmapImage = tmp;
 
         //run kernel
-        kernel(eargs, 1, hotspotsStartImage, hotspotsEndImage, *oldHeatmapImage, *newHeatmapImage).wait();
+        kernel(eargs, i+1, hotspotsStartImage, hotspotsEndImage, *oldHeatmapImage, *newHeatmapImage).wait();
     }
 
     //read output back from device
