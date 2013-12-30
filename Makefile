@@ -1,7 +1,7 @@
 CC=g++
 CFLAGS=-c -Wall -Ofast -std=c++11
 LDFLAGS=-lOpenCL
-SOURCES=main.cpp Hotspot.cpp Coordinate.cpp
+SOURCES=main.cpp Hotspot.cpp Coordinate.cpp base64.cpp opencl.cpp timing.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=heatmap
 
