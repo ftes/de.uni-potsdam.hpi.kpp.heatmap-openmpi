@@ -170,7 +170,7 @@ void setHotspots(float *grid, vector<int> localHotspots, int round)
 int getNeighbour(MPI_Comm comm, int ownX, int ownY, int deltaX, int deltaY)
 {
     int rank;
-    int coords[] = {ownX + deltaX, ownY + deltaY};
+    int coords[] = {ownY + deltaY, ownX + deltaX};
     if (MPI_Cart_rank(comm, coords, &rank) == MPI_ERR_RANK) rank = MPI_PROC_NULL;
     return rank;
 }
@@ -259,6 +259,7 @@ int main(int argc, char* argv[])
     int reorder = false;
     MPI_Comm comm;
     MPI_Cart_create(MPI_COMM_WORLD, 2, &dims.front(), periods, reorder, &comm);
+    MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
     MPI_Cart_coords(comm, rank, 2, coords);
 
     if ( rank == 0 )
@@ -306,22 +307,24 @@ int main(int argc, char* argv[])
     if (rank != 0) hotspots = new int[hotspotsLength];
     MPI_Bcast(hotspots, hotspotsLength, MPI_INT, 0, MPI_COMM_WORLD);
 
-    int fromX = getLocalFrom(width, dims[0], coords[0]);
-    int fromY = getLocalFrom(height, dims[1], coords[1]);
-    int toX = getLocalTo(width, dims[0], coords[0]);
-    int toY = getLocalTo(height, dims[1], coords[1]);
-    int nonCutToX = getNonCutLocalTo(width, dims[0], coords[0]);
-    int nonCutToY = getNonCutLocalTo(height, dims[1], coords[1]);
+    int fromX = getLocalFrom(width, dims[1], coords[1]);
+    int fromY = getLocalFrom(height, dims[0], coords[0]);
+    int toX = getLocalTo(width, dims[1], coords[1]);
+    int toY = getLocalTo(height, dims[0], coords[0]);
+    int nonCutToX = getNonCutLocalTo(width, dims[1], coords[1]);
+    int nonCutToY = getNonCutLocalTo(height, dims[0], coords[0]);
 
     int left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight;
-    left = getNeighbour(comm, coords[0], coords[1], -1, 0);
-    right = getNeighbour(comm, coords[0], coords[1], 1, 0);
-    top = getNeighbour(comm, coords[0], coords[1], 0, -1);
-    bottom = getNeighbour(comm, coords[0], coords[1], 0, 1);
-    topLeft = getNeighbour(comm, coords[0], coords[1], -1, -1);
-    topRight = getNeighbour(comm, coords[0], coords[1], 1, -1);
-    bottomLeft = getNeighbour(comm, coords[0], coords[1], -1, 1);
-    bottomRight = getNeighbour(comm, coords[0], coords[1], 1, 1);
+    left = getNeighbour(comm, coords[1], coords[0], -1, 0);
+    right = getNeighbour(comm, coords[1], coords[0], 1, 0);
+    top = getNeighbour(comm, coords[1], coords[0], 0, -1);
+    bottom = getNeighbour(comm, coords[1], coords[0], 0, 1);
+    topLeft = getNeighbour(comm, coords[1], coords[0], -1, -1);
+    topRight = getNeighbour(comm, coords[1], coords[0], 1, -1);
+    bottomLeft = getNeighbour(comm, coords[1], coords[0], -1, 1);
+    bottomRight = getNeighbour(comm, coords[1], coords[0], 1, 1);
+
+    printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
 
     //add borders (either 0, or come from neighbour)
     int localWidth = toX - fromX + 2;
