@@ -2,10 +2,11 @@
 #include <fstream>
 #include <sstream>
 #include <math.h>
+#include <vector>
+#include <mpi.h>
 
 #include "Hotspot.h"
 #include "Coordinate.h"
-#include "opencl.hpp"
 #include "timing.hpp"
 
 using namespace std;
@@ -112,6 +113,27 @@ void writeOutput(float data[])
 
 int main(int argc, char* argv[])
 {
+    int numprocessors, rank, namelen;
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Get_processor_name(processor_name, &namelen);
+
+    if ( rank == 0 )
+    {
+        std::cout << "Processor name: " << processor_name << "\n";
+    std::cout << "master (" << rank << "/" << numprocessors << ")\n";
+    } else {
+        std::cout << "slave  (" << rank << "/" << numprocessors << ")\n";
+   }
+   MPI_Finalize();
+   return 0;
+}
+/*
+void oldMain(int argc, char* argv[])   {
+
     timeval start = startTiming();
 
     //read input
@@ -140,6 +162,7 @@ int main(int argc, char* argv[])
     fill_n(startData, width*height, 0.f);
 
     //read hotspots
+    //problem: if activated several times
     for (vector<int> line : parseCsv(hotspotsFile))
     {
         Hotspot hotspot(line.at(0), line.at(1), line.at(2), line.at(3));
@@ -154,86 +177,22 @@ int main(int argc, char* argv[])
 
 
 
-
-    //OpenCL preparations
-    //listDevices();
-
-    //get device
-    cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
-    string deviceName = device.getInfo<CL_DEVICE_NAME>();
-    cout << "Using device: " << deviceName.c_str() << "\n";
-
-    //does device have image support?
-    cl_bool result;
-    device.getInfo(CL_DEVICE_IMAGE_SUPPORT, &result);
-    if (! result)
-        cout << "No image support!\n";
-
-    //get context for communicating with device
-    cl::Context context = getContext(device);
-
-    //compile the program for the device
-    cl::Program program = loadProgram(device, context);
-
-
-    // Create an OpenCL Image for the hotspots, shall be copied to device
-    cl::Image2D hotspotsStartImage = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                     cl::ImageFormat(CL_R, CL_UNSIGNED_INT32), width, height, 0, hotspotsStartData);
-
-    // Create an OpenCL Image for the hotspots, shall be copied to device
-    cl::Image2D hotspotsEndImage = cl::Image2D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                   cl::ImageFormat(CL_R, CL_UNSIGNED_INT32), width, height, 0, hotspotsEndData);
-
-    // Create an OpenCL Image for the input data, shall be copied to device
-    cl::Image2D startImage = cl::Image2D(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                                         cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0, startData);
-
-    // Create an OpenCL Image for the output data
-    cl::Image2D otherStartImage = cl::Image2D(context, CL_MEM_READ_WRITE,
-                                  cl::ImageFormat(CL_R, CL_FLOAT), width, height, 0);
-
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context, device);
-
-    //push kernel to the device, with the buffers as parameter values
-    auto kernel = cl::make_kernel<unsigned int, cl::Image2D, cl::Image2D, cl::Image2D, cl::Image2D>(program, "heatmap");
-    //ranges: global offset, global (global number of work items), local (number of work items per work group)
-    cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(width, height), cl::NullRange);
-
-    // assign "wrong way round" because they are swapped back again in the for loop
-    cl::Image2D *oldHeatmapImage = &otherStartImage;
-    cl::Image2D *newHeatmapImage = &startImage;
-
-    timeval startCl = startTiming();
-
     //perform rounds
     //the images remain in the device memory instead of reading and writing to host memory every round
     for (int i=0; i<numberOfRounds; i++)
     {
         //swap heatmaps
-        cl::Image2D *tmp = oldHeatmapImage;
-        oldHeatmapImage = newHeatmapImage;
-        newHeatmapImage = tmp;
+        //cl::Image2D *tmp = oldHeatmapImage;
+        //oldHeatmapImage = newHeatmapImage;
+        //newHeatmapImage = tmp;
 
         //run kernel
-        kernel(eargs, i+1, hotspotsStartImage, hotspotsEndImage, *oldHeatmapImage, *newHeatmapImage).wait();
+        //kernel(eargs, i+1, hotspotsStartImage, hotspotsEndImage, *oldHeatmapImage, *newHeatmapImage).wait();
     }
-
-    cout << "OpenCL Runtime: " << getElapsedSec(startCl) << "\n";
-
-    //read output back from device
-    cl::size_t<3> origin, region;
-    origin[0] = 0;
-    origin[1] = 0;
-    origin[2] = 0;
-    region[0] = width;
-    region[1] = height;
-    region[2] = 1;
-    queue.enqueueReadImage(*newHeatmapImage, true, origin, region, 0, 0, startData);
 
     writeOutput(startData);
 
     cout << "Overall Runtime: " << getElapsedSec(start) << "\n";
 
     exit(0);
-}
+}*/
