@@ -268,7 +268,7 @@ int main(int argc, char* argv[])
     //MPI_Cart_coords(comm, rank, 2, coords);
     coords[1] = rank / dims[0];
     coords[0] = rank % dims[0];
-    printf("%d: (%d,%d) of (%d,%d)\n", rank, coords[1], coords[0], dims[1], dims[0]);
+    //printf("%d: (%d,%d) of (%d,%d)\n", rank, coords[1], coords[0], dims[1], dims[0]);
 
     if ( rank == 0 )
     {
@@ -332,7 +332,7 @@ int main(int argc, char* argv[])
     bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
     bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
-    printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
+    //printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
 
     //add borders (either 0, or come from neighbour)
     int localWidth = toX - fromX + 2;
@@ -393,6 +393,8 @@ int main(int argc, char* argv[])
         }
     }
 
+    printf("%d done with rounds\n", rank);
+
     setHotspots(current, localHotspots, numberOfRounds);
 
     ofstream *output;
@@ -415,18 +417,21 @@ int main(int argc, char* argv[])
 
         //row major probably -> x's should be directly next to each other
         MPI_Gather(current, nonCutLocalHeight*nonCutLocalWidth, MPI_FLOAT,
-                   resultGrid, resultGridSize, MPI_FLOAT, 0, comm);
+                  resultGrid, resultGridSize, MPI_FLOAT, 0, comm);
 
         if (rank == 0)
         {
             for (int yProc=0; yProc<dims[0]; yProc++)
             {
-                for (int yItem=1; yItem<localHeight-1; yItem++)
+                for (int yItem=1; yItem<nonCutLocalHeight-1; yItem++)
                 {
-                    for (int xProc=0; xProc<dims[0]; xProc++)
+                    for (int xProc=0; xProc<dims[1]; xProc++)
                     {
-                        for (int xItem=1; xItem<localWidth-1; xItem++)
+                        for (int xItem=1; xItem<nonCutLocalWidth-1; xItem++)
                         {
+                            int y = yProc * nonCutLocalHeight + yItem - 1;
+                            int x = xProc * nonCutLocalWidth + xItem - 1;
+                            if (x >= width || y >= height) continue;
                             string out = getOutputValue(resultGrid[
                                                             yProc * (localWidth * localHeight * dims[1])
                                                             + xProc * (localWidth * localHeight)
