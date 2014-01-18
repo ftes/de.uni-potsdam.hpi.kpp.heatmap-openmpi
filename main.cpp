@@ -162,9 +162,11 @@ inline int getIndex(int x, int y, int rowLength)
 
 void setHotspots(float *grid, vector<int> localHotspots, int round)
 {
-    for (int i=0; i<localHotspots.size(); i+=3)
-        if (localHotspots[i+1] >= round && localHotspots[i+2] < round)
+    for (int i=0; i<localHotspots.size(); i+=3) {
+        if (round >= localHotspots[i+1] && round < localHotspots[i+2]) {
             grid[localHotspots[i]] = 1.f;
+        }
+    }
 }
 
 int getNeighbour(MPI_Comm comm, vector<int> dims, int ownX, int ownY, int deltaX, int deltaY)
@@ -179,42 +181,44 @@ int getNeighbour(MPI_Comm comm, vector<int> dims, int ownX, int ownY, int deltaX
     //return rank;
 }
 
-MPI_Status rowTo(MPI_Comm comm, int fromRank, int toRank, int localWidth, float *sendingRow, float *receivingRow)
+MPI_Status rowTo(MPI_Comm comm, int fromRank, int toRank, int localWidth, float *sendingRow, float *receivingRow, int tag)
 {
     MPI_Status status;
-    MPI_Sendrecv(sendingRow, localWidth, MPI_INT, toRank, 0,
-                 receivingRow, localWidth, MPI_INT, fromRank, 0, comm, &status);
+    MPI_Sendrecv(sendingRow, localWidth, MPI_FLOAT, toRank, tag,
+                 receivingRow, localWidth, MPI_FLOAT, fromRank, tag, comm, &status);
     return status;
 }
 
-MPI_Status rowToTop(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight)
+MPI_Status rowToTop(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight, int rank)
 {
-    return rowTo(comm, fromRank, toRank, localWidth,
+    return rowTo(comm, fromRank, toRank, localWidth - 2,
                  grid + getIndex(1, 1, localWidth),                  //sending row
-                 grid + getIndex(1, localHeight - 1, localWidth));   //receiving row
+                 grid + getIndex(1, localHeight - 1, localWidth),    //receiving row
+                 2);
 }
 
 MPI_Status rowToBottom(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight)
 {
-    return rowTo(comm, fromRank, toRank, localWidth,
+    return rowTo(comm, fromRank, toRank, localWidth - 2,
                  grid + getIndex(1, localHeight - 2, localWidth),    //sending row
-                 grid + getIndex(1, 0, localWidth));                 //receiving row
+                 grid + getIndex(1, 0, localWidth),                  //receiving row
+                 8);
 }
 
-MPI_Status colTo(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight, int sendingColIndex, int receivingColIndex)
+MPI_Status colTo(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight, int sendingColIndex, int receivingColIndex, int tag)
 {
     float sendingCol[localHeight - 2];
     float receivingCol[localHeight - 2];
     for (int i=0; i<localHeight - 2; i++)
     {
-        sendingCol[i] = grid[getIndex(i+1, sendingColIndex, localWidth)];
+        sendingCol[i] = grid[getIndex(sendingColIndex, i+1, localWidth)];
     }
 
-    MPI_Status status = rowTo(comm, fromRank, toRank, localWidth, sendingCol, receivingCol);
+    MPI_Status status = rowTo(comm, fromRank, toRank, localHeight - 2, sendingCol, receivingCol, tag);
 
     for (int i=0; i<localHeight - 2; i++)
     {
-        grid[getIndex(i+1, receivingColIndex, localWidth)] = receivingCol[i];
+        grid[getIndex(receivingColIndex, i+1, localWidth)] = receivingCol[i];
     }
 
     return status;
@@ -222,19 +226,19 @@ MPI_Status colTo(MPI_Comm comm, int fromRank, int toRank, float *grid, int local
 
 MPI_Status colToLeft(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight)
 {
-    return colTo(comm, fromRank, toRank, grid, localWidth, localHeight, 1, localHeight - 1);
+    return colTo(comm, fromRank, toRank, grid, localWidth, localHeight, 1, localWidth - 1, 4);
 }
 
 MPI_Status colToRight(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight)
 {
-    return colTo(comm, fromRank, toRank, grid, localWidth, localHeight, localHeight - 2, 0);
+    return colTo(comm, fromRank, toRank, grid, localWidth, localHeight, localWidth - 2, 0, 6);
 }
 
-MPI_Status cellTo(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int xFrom, int yFrom, int xTo, int yTo)
+MPI_Status cellTo(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int xFrom, int yFrom, int xTo, int yTo, int tag)
 {
     MPI_Status status;
-    MPI_Sendrecv(grid + getIndex(xFrom, yFrom, localWidth), localWidth, MPI_INT, toRank, 0,
-                 grid + getIndex(xTo, yTo, localWidth), localWidth, MPI_INT, fromRank, 0, comm, &status);
+    MPI_Sendrecv(grid + getIndex(xFrom, yFrom, localWidth), 1, MPI_FLOAT, toRank, tag,
+                 grid + getIndex(xTo, yTo, localWidth), 1, MPI_FLOAT, fromRank, tag, comm, &status);
     return status;
 }
 
@@ -272,7 +276,6 @@ int main(int argc, char* argv[])
 
     if ( rank == 0 )
     {
-        std::cout << "master (" << rank << "/" << numprocessors << ")\n";
         start = startTiming();
 
         //read input
@@ -287,7 +290,6 @@ int main(int argc, char* argv[])
         hotspots = &hotspotsV.front();
         hotspotsLength = hotspotsV.size();
     }
-    else std::cout << "slave  (" << rank << "/" << numprocessors << ")\n";
 
     //read coords
     if (argc == 6)
@@ -322,6 +324,8 @@ int main(int argc, char* argv[])
     int nonCutToX = getNonCutLocalTo(width, dims[1], coords[1]);
     int nonCutToY = getNonCutLocalTo(height, dims[0], coords[0]);
 
+    printf("%d (%d, %d): (%d,%d) - (%d, %d)\n", rank, coords[1], coords[0], fromX, fromY, toX, toY);
+
     int left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight;
     left = getNeighbour(comm, dims, coords[1], coords[0], -1, 0);
     right = getNeighbour(comm, dims, coords[1], coords[0], 1, 0);
@@ -332,7 +336,7 @@ int main(int argc, char* argv[])
     bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
     bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
-    //printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
+    if (rank == 1) printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
 
     //add borders (either 0, or come from neighbour)
     int localWidth = toX - fromX + 2;
@@ -349,13 +353,15 @@ int main(int argc, char* argv[])
     vector<int> localHotspots;
     for (int i=0; i<hotspotsLength; i+=4)
     {
-        if (hotspots[0] >= fromX && hotspots[0] <= toX && hotspots[1] <= fromY && hotspots[1] >= toY)
+        if (hotspots[i] >= fromX && hotspots[i] <= toX && hotspots[i+1] >= fromY && hotspots[i+1] <= toY)
         {
-            localHotspots.push_back(getIndex(hotspots[0] - fromX + 1, hotspots[1] - fromY + 1, localWidth));
-            localHotspots.push_back(hotspots[2]);
-            localHotspots.push_back(hotspots[3]);
+            localHotspots.push_back(getIndex(hotspots[i] - fromX + 1, hotspots[i+1] - fromY + 1, nonCutLocalWidth));
+            localHotspots.push_back(hotspots[i+2]);
+            localHotspots.push_back(hotspots[i+3]);
         }
     }
+
+    printf("%d (%d,%d) has %d hotspots\n", rank, coords[1], coords[0], localHotspots.size() / 3);
 
     float *previous = localGridA;
     float *current = localGridB;
@@ -366,14 +372,25 @@ int main(int argc, char* argv[])
         setHotspots(current, localHotspots, i);
 
         //transfer data to neighbours
-        colToLeft(comm, right, left, current, localWidth, localHeight);
-        colToRight(comm, left, right, current, localWidth, localHeight);
-        rowToTop(comm, bottom, top, current, localWidth, localHeight);
-        rowToBottom(comm, top, bottom, current, localWidth, localHeight);
-        cellTo(comm, bottomRight, topLeft, current, localWidth, 1, 1, localWidth - 1, localHeight - 1); // to top left
-        cellTo(comm, bottomLeft, topRight, current, localWidth, localWidth - 2, 1, 0, localHeight - 1); // to top right
-        cellTo(comm, topRight, bottomLeft, current, localWidth, 1, localHeight - 2, localWidth - 1, 0); // to bottom left
-        cellTo(comm, topLeft, bottomRight, current, localWidth, localWidth - 2, localHeight - 2, 0, 0); // to bottom right
+        colToLeft(comm, right, left, current, nonCutLocalWidth, nonCutLocalHeight);
+        colToRight(comm, left, right, current, nonCutLocalWidth, nonCutLocalHeight);
+        rowToTop(comm, bottom, top, current, nonCutLocalWidth, nonCutLocalHeight);
+        rowToBottom(comm, top, bottom, current, nonCutLocalWidth, nonCutLocalHeight);
+        cellTo(comm, bottomRight, topLeft, current, nonCutLocalWidth, 1, 1, nonCutLocalWidth - 1, nonCutLocalHeight - 1, 1); // to top left
+        cellTo(comm, bottomLeft, topRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, 1, 0, nonCutLocalHeight - 1, 3); // to top right
+        cellTo(comm, topRight, bottomLeft, current, nonCutLocalWidth, 1, nonCutLocalHeight - 2, nonCutLocalWidth - 1, 0, 7); // to bottom left
+        cellTo(comm, topLeft, bottomRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, nonCutLocalHeight - 2, 0, 0, 9); // to bottom right
+
+
+        if (rank == 0) {
+            for (int y=0; y<nonCutLocalHeight; y++) {
+                for (int x=0; x<nonCutLocalWidth; x++) {
+                    cout << getOutputValue(current[getIndex(x, y, nonCutLocalWidth)]) << " ";
+                }
+                cout << "\n";
+            }
+        }
+        cout << "\n";
 
         //swap heatmaps
         float *tmp = previous;
@@ -385,10 +402,10 @@ int main(int argc, char* argv[])
         {
             for (int x=1; x<localWidth-1; x++)
             {
-                int i = getIndex(x, y, localWidth);
-                current[i] = ( previous[i-localWidth-1] + previous[i-localWidth] + previous[i-localWidth+1] +
+                int i = getIndex(x, y, nonCutLocalWidth);
+                current[i] = ( previous[i-nonCutLocalWidth-1] + previous[i-nonCutLocalWidth] + previous[i-nonCutLocalWidth+1] +
                                previous[i-1] + previous[i] + previous[i+1] +
-                               previous[i+localWidth-1] + previous[i+localWidth] + previous[i+localWidth+1] ) / 9;
+                               previous[i+nonCutLocalWidth-1] + previous[i+nonCutLocalWidth] + previous[i+nonCutLocalWidth+1] ) / 9;
             }
         }
     }
