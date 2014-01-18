@@ -167,12 +167,16 @@ void setHotspots(float *grid, vector<int> localHotspots, int round)
             grid[localHotspots[i]] = 1.f;
 }
 
-int getNeighbour(MPI_Comm comm, int ownX, int ownY, int deltaX, int deltaY)
+int getNeighbour(MPI_Comm comm, vector<int> dims, int ownX, int ownY, int deltaX, int deltaY)
 {
     int rank;
-    int coords[] = {ownY + deltaY, ownX + deltaX};
-    if (MPI_Cart_rank(comm, coords, &rank) == MPI_ERR_RANK) rank = MPI_PROC_NULL;
-    return rank;
+    //int coords[] = {ownY + deltaY, ownX + deltaX};
+    //if (MPI_Cart_rank(comm, coords, &rank) == MPI_ERR_RANK) rank = MPI_PROC_NULL;
+    int x = ownX + deltaX;
+    int y = ownY + deltaY;
+    if (x >= dims[1] || x<0 || y >= dims[0] || y < 0) return MPI_PROC_NULL;
+    return y * dims[1] + x;
+    //return rank;
 }
 
 MPI_Status rowTo(MPI_Comm comm, int fromRank, int toRank, int localWidth, float *sendingRow, float *receivingRow)
@@ -258,9 +262,13 @@ int main(int argc, char* argv[])
     int periods[] = {false, false};
     int reorder = false;
     MPI_Comm comm;
-    MPI_Cart_create(MPI_COMM_WORLD, 2, &dims.front(), periods, reorder, &comm);
+    comm = MPI_COMM_WORLD;
+    //MPI_Cart_create(MPI_COMM_WORLD, 2, &dims.front(), periods, reorder, &comm);
     MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
-    MPI_Cart_coords(comm, rank, 2, coords);
+    //MPI_Cart_coords(comm, rank, 2, coords);
+    coords[1] = rank / dims[0];
+    coords[0] = rank % dims[0];
+    printf("%d: (%d,%d) of (%d,%d)\n", rank, coords[1], coords[0], dims[1], dims[0]);
 
     if ( rank == 0 )
     {
@@ -315,14 +323,14 @@ int main(int argc, char* argv[])
     int nonCutToY = getNonCutLocalTo(height, dims[0], coords[0]);
 
     int left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight;
-    left = getNeighbour(comm, coords[1], coords[0], -1, 0);
-    right = getNeighbour(comm, coords[1], coords[0], 1, 0);
-    top = getNeighbour(comm, coords[1], coords[0], 0, -1);
-    bottom = getNeighbour(comm, coords[1], coords[0], 0, 1);
-    topLeft = getNeighbour(comm, coords[1], coords[0], -1, -1);
-    topRight = getNeighbour(comm, coords[1], coords[0], 1, -1);
-    bottomLeft = getNeighbour(comm, coords[1], coords[0], -1, 1);
-    bottomRight = getNeighbour(comm, coords[1], coords[0], 1, 1);
+    left = getNeighbour(comm, dims, coords[1], coords[0], -1, 0);
+    right = getNeighbour(comm, dims, coords[1], coords[0], 1, 0);
+    top = getNeighbour(comm, dims, coords[1], coords[0], 0, -1);
+    bottom = getNeighbour(comm, dims, coords[1], coords[0], 0, 1);
+    topLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, -1);
+    topRight = getNeighbour(comm, dims, coords[1], coords[0], 1, -1);
+    bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
+    bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
     printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
 
