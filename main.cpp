@@ -459,7 +459,7 @@ int main(int argc, char* argv[])
                             *output << out.c_str();
                         }
                     }
-                    *output << "\n";
+                    if (yProc * (nonCutLocalHeight - 2) + yItem - 1 < height - 1) *output << "\n";
                 }
             }
         } //if rank == 0
