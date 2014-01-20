@@ -278,7 +278,9 @@ int main(int argc, char* argv[])
 
     if ( rank == 0 )
     {
+        #ifdef DEBUG
         start = startTiming();
+        #endif
 
         //read input
         string hotspotsFile = string(argv[4]);
@@ -326,7 +328,9 @@ int main(int argc, char* argv[])
     int nonCutToX = getNonCutLocalTo(width, dims[1], coords[1]);
     int nonCutToY = getNonCutLocalTo(height, dims[0], coords[0]);
 
+    #ifdef DEBUF
     printf("%d (%d, %d): (%d,%d) - (%d, %d)\n", rank, coords[1], coords[0], fromX, fromY, toX, toY);
+    #endif
 
     int left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight;
     left = getNeighbour(comm, dims, coords[1], coords[0], -1, 0);
@@ -338,7 +342,9 @@ int main(int argc, char* argv[])
     bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
     bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
-    printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
+    #ifdef DEBUG
+    printf("%d neighbours:\n%d %d %d\n%d %d %d\n%d %d %d\n\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
+    #endif
 
     //add borders (either 0, or come from neighbour)
     int localWidth = toX - fromX + 3;
@@ -364,7 +370,9 @@ int main(int argc, char* argv[])
         }
     }
 
-    //printf("%d (%d,%d) has %d hotspots\n", rank, coords[1], coords[0], localHotspots.size() / 3);
+    #ifdef DEBUG
+    printf("%d (%d,%d) has %d hotspots\n", rank, coords[1], coords[0], localHotspots.size() / 3);
+    #endif
 
     float *previous = localGridA;
     float *current = localGridB;
@@ -377,26 +385,12 @@ int main(int argc, char* argv[])
         //transfer data to neighbours
         colToLeft(comm, right, left, current, nonCutLocalWidth, nonCutLocalHeight);
         colToRight(comm, left, right, current, nonCutLocalWidth, nonCutLocalHeight);
-        //rowToTop(comm, bottom, top, current, nonCutLocalWidth, nonCutLocalHeight);
-        //rowToBottom(comm, top, bottom, current, nonCutLocalWidth, nonCutLocalHeight);
-        //cellTo(comm, bottomRight, topLeft, current, nonCutLocalWidth, 1, 1, nonCutLocalWidth - 1, nonCutLocalHeight - 1, 1); // to top left
-        //cellTo(comm, bottomLeft, topRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, 1, 0, nonCutLocalHeight - 1, 3); // to top right
-        //cellTo(comm, topRight, bottomLeft, current, nonCutLocalWidth, 1, nonCutLocalHeight - 2, nonCutLocalWidth - 1, 0, 7); // to bottom left
-        //cellTo(comm, topLeft, bottomRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, nonCutLocalHeight - 2, 0, 0, 9); // to bottom right
-
-
-        /*if (rank == 0)
-        {
-            for (int y=0; y<nonCutLocalHeight; y++)
-            {
-                for (int x=0; x<nonCutLocalWidth; x++)
-                {
-                    cout << getOutputValue(current[getIndex(x, y, nonCutLocalWidth)]) << " ";
-                }
-                cout << "\n";
-            }
-        }
-        cout << "\n";*/
+        rowToTop(comm, bottom, top, current, nonCutLocalWidth, nonCutLocalHeight);
+        rowToBottom(comm, top, bottom, current, nonCutLocalWidth, nonCutLocalHeight);
+        cellTo(comm, bottomRight, topLeft, current, nonCutLocalWidth, 1, 1, nonCutLocalWidth - 1, nonCutLocalHeight - 1, 1); // to top left
+        cellTo(comm, bottomLeft, topRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, 1, 0, nonCutLocalHeight - 1, 3); // to top right
+        cellTo(comm, topRight, bottomLeft, current, nonCutLocalWidth, 1, nonCutLocalHeight - 2, nonCutLocalWidth - 1, 0, 7); // to bottom left
+        cellTo(comm, topLeft, bottomRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, nonCutLocalHeight - 2, 0, 0, 9); // to bottom right
 
         //swap heatmaps
         float *tmp = previous;
@@ -414,9 +408,13 @@ int main(int argc, char* argv[])
                                previous[i+nonCutLocalWidth-1] + previous[i+nonCutLocalWidth] + previous[i+nonCutLocalWidth+1] ) / 9;
             }
         }
+
+        #ifdef DEBUG
+        printf("%d done with round %d\n", rank, round);
+        #endif
     }
 
-    printf("%d done with rounds\n", rank);
+    //printf("%d done with rounds\n", rank);
 
     setHotspots(current, localHotspots, numberOfRounds);
 
@@ -500,15 +498,11 @@ int main(int argc, char* argv[])
 
     }
 
-    if (rank == 0)
-    {
-        output->close();
-    }
+    if (rank == 0) output->close();
 
-    if (rank == 0)
-    {
-        cout << "Overall Runtime: " << getElapsedSec(start) << "\n";
-    }
+    #ifdef DEBUG
+    if (rank == 0) cout << "Overall Runtime: " << getElapsedSec(start) << "\n";
+    #endif
 
     MPI_Finalize();
     exit(0);
