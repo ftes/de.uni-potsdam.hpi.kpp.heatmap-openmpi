@@ -104,6 +104,7 @@ vector<int> getIdealGridSize(int width, int height, int numberOfProcessors)
     }
     else
     {
+        //TODO maximize area!
         //find closest fit of grid ratio to ratio of possible numberOfProcessors factors
         float gridRatio = ((float) width) / height;
         float minRatioDiff = FLT_MAX;
@@ -271,8 +272,8 @@ int main(int argc, char* argv[])
     //MPI_Cart_create(MPI_COMM_WORLD, 2, &dims.front(), periods, reorder, &comm);
     MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
     //MPI_Cart_coords(comm, rank, 2, coords);
-    coords[1] = rank / dims[0];
-    coords[0] = rank % dims[0];
+    coords[1] = rank % dims[1];
+    coords[0] = rank / dims[1];
     //printf("%d: (%d,%d) of (%d,%d)\n", rank, coords[1], coords[0], dims[1], dims[0]);
 
     if ( rank == 0 )
@@ -337,7 +338,7 @@ int main(int argc, char* argv[])
     bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
     bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
-    //if (rank == 1) printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
+    printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
 
     //add borders (either 0, or come from neighbour)
     int localWidth = toX - fromX + 3;
@@ -376,15 +377,15 @@ int main(int argc, char* argv[])
         //transfer data to neighbours
         colToLeft(comm, right, left, current, nonCutLocalWidth, nonCutLocalHeight);
         colToRight(comm, left, right, current, nonCutLocalWidth, nonCutLocalHeight);
-        rowToTop(comm, bottom, top, current, nonCutLocalWidth, nonCutLocalHeight);
-        rowToBottom(comm, top, bottom, current, nonCutLocalWidth, nonCutLocalHeight);
-        cellTo(comm, bottomRight, topLeft, current, nonCutLocalWidth, 1, 1, nonCutLocalWidth - 1, nonCutLocalHeight - 1, 1); // to top left
-        cellTo(comm, bottomLeft, topRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, 1, 0, nonCutLocalHeight - 1, 3); // to top right
-        cellTo(comm, topRight, bottomLeft, current, nonCutLocalWidth, 1, nonCutLocalHeight - 2, nonCutLocalWidth - 1, 0, 7); // to bottom left
-        cellTo(comm, topLeft, bottomRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, nonCutLocalHeight - 2, 0, 0, 9); // to bottom right
+        //rowToTop(comm, bottom, top, current, nonCutLocalWidth, nonCutLocalHeight);
+        //rowToBottom(comm, top, bottom, current, nonCutLocalWidth, nonCutLocalHeight);
+        //cellTo(comm, bottomRight, topLeft, current, nonCutLocalWidth, 1, 1, nonCutLocalWidth - 1, nonCutLocalHeight - 1, 1); // to top left
+        //cellTo(comm, bottomLeft, topRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, 1, 0, nonCutLocalHeight - 1, 3); // to top right
+        //cellTo(comm, topRight, bottomLeft, current, nonCutLocalWidth, 1, nonCutLocalHeight - 2, nonCutLocalWidth - 1, 0, 7); // to bottom left
+        //cellTo(comm, topLeft, bottomRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, nonCutLocalHeight - 2, 0, 0, 9); // to bottom right
 
 
-        if (rank == 0)
+        /*if (rank == 0)
         {
             for (int y=0; y<nonCutLocalHeight; y++)
             {
@@ -395,7 +396,7 @@ int main(int argc, char* argv[])
                 cout << "\n";
             }
         }
-        cout << "\n";
+        cout << "\n";*/
 
         //swap heatmaps
         float *tmp = previous;
@@ -440,8 +441,6 @@ int main(int argc, char* argv[])
 
         if (rank == 0)
         {
-            int xMax = 0;
-            int yMax = 0;
             for (int yProc=0; yProc<dims[0]; yProc++)
             {
                 for (int yItem=1; yItem<nonCutLocalHeight-1; yItem++)
@@ -450,11 +449,10 @@ int main(int argc, char* argv[])
                     {
                         for (int xItem=1; xItem<nonCutLocalWidth-1; xItem++)
                         {
-                            int y = yProc * nonCutLocalHeight + yItem - 1;
-                            int x = xProc * nonCutLocalWidth + xItem - 1;
+                            int y = yProc * (nonCutLocalHeight - 2) + yItem - 1;
+                            int x = xProc * (nonCutLocalWidth - 2) + xItem - 1;
                             if (x >= width || y >= height) continue;
 
-                            printf("(%d,%d)\n", x, y);
                             string out = getOutputValue(resultGrid[
                                                             yProc * (localWidth * localHeight * dims[1])
                                                             + xProc * (localWidth * localHeight)
