@@ -278,9 +278,9 @@ int main(int argc, char* argv[])
 
     if ( rank == 0 )
     {
-        #ifdef DEBUG
+#ifdef DEBUG
         start = startTiming();
-        #endif
+#endif
 
         //read input
         string hotspotsFile = string(argv[4]);
@@ -328,9 +328,9 @@ int main(int argc, char* argv[])
     int nonCutToX = getNonCutLocalTo(width, dims[1], coords[1]);
     int nonCutToY = getNonCutLocalTo(height, dims[0], coords[0]);
 
-    #ifdef DEBUF
+#ifdef DEBUF
     printf("%d (%d, %d): (%d,%d) - (%d, %d)\n", rank, coords[1], coords[0], fromX, fromY, toX, toY);
-    #endif
+#endif
 
     int left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight;
     left = getNeighbour(comm, dims, coords[1], coords[0], -1, 0);
@@ -342,9 +342,9 @@ int main(int argc, char* argv[])
     bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
     bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("%d neighbours:\n%d %d %d\n%d %d %d\n%d %d %d\n\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
-    #endif
+#endif
 
     //add borders (either 0, or come from neighbour)
     int localWidth = toX - fromX + 3;
@@ -370,9 +370,9 @@ int main(int argc, char* argv[])
         }
     }
 
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("%d (%d,%d) has %d hotspots\n", rank, coords[1], coords[0], localHotspots.size() / 3);
-    #endif
+#endif
 
     float *previous = localGridA;
     float *current = localGridB;
@@ -409,9 +409,9 @@ int main(int argc, char* argv[])
             }
         }
 
-        #ifdef DEBUG
+#ifdef DEBUG
         printf("%d done with round %d\n", rank, round);
-        #endif
+#endif
     }
 
     //printf("%d done with rounds\n", rank);
@@ -468,41 +468,50 @@ int main(int argc, char* argv[])
 
     else   // if writeCoords
     {
+        int numCoords = outputCoordsLength / 2;
+        float result[numCoords];
         for (int i=0; i<outputCoordsLength; i+=2)
         {
             int x = outputCoords[i];
             int y = outputCoords[i+1];
-            float value;
-
-            if (rank == 0)
+            if (x >= fromX && x <= toX && y >= fromY && y <= toY)
             {
-                if (x >= fromX && x <= toX && y >= fromY && y <= toY)
-                {
-                    value = current[getIndex(x - fromX - 1, y - fromY - 1, localWidth)];
-                }
-                else
-                {
-                    MPI_Status status;
-                    MPI_Recv(&value, 1, MPI_FLOAT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-                }
-                *output << value <<"\n";
+                result[i/2] = current[getIndex(x - fromX + 1, y - fromY + 1, nonCutLocalWidth)];
             }
-            else
-            {
-                if (x >= fromX && x <= toX && y >= fromY && y <= toY)
-                {
-                    MPI_Send(current + getIndex(x - fromX - 1, y - fromY - 1, localWidth), 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
-                }
-            }
+            else result[i/2] = 0;
         }
 
+        //transfer data back to root
+        float *allResult;
+        if (rank == 0) allResult = new float[numCoords * numprocessors];
+
+        MPI_Gather(result, numCoords, MPI_FLOAT,
+                   allResult, numCoords, MPI_FLOAT, 0, comm);
+
+        if (rank == 0)
+        {
+            for (int i=0; i<numCoords; i++)
+            {
+                float curr = 0;
+                for (int j=0; j<numprocessors; j++)
+                {
+                    int index = j * numCoords + i;
+                    if (allResult[index] > 0)
+                    {
+                        curr = allResult[index];
+                        break;
+                    }
+                }
+                *output << curr <<"\n";
+            }
+        }
     }
 
     if (rank == 0) output->close();
 
-    #ifdef DEBUG
+#ifdef DEBUG
     if (rank == 0) cout << "Overall Runtime: " << getElapsedSec(start) << "\n";
-    #endif
+#endif
 
     MPI_Finalize();
     exit(0);
