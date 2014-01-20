@@ -162,8 +162,10 @@ inline int getIndex(int x, int y, int rowLength)
 
 void setHotspots(float *grid, vector<int> localHotspots, int round)
 {
-    for (int i=0; i<localHotspots.size(); i+=3) {
-        if (round >= localHotspots[i+1] && round < localHotspots[i+2]) {
+    for (int i=0; i<localHotspots.size(); i+=3)
+    {
+        if (round >= localHotspots[i+1] && round < localHotspots[i+2])
+        {
             grid[localHotspots[i]] = 1.f;
         }
     }
@@ -189,7 +191,7 @@ MPI_Status rowTo(MPI_Comm comm, int fromRank, int toRank, int localWidth, float 
     return status;
 }
 
-MPI_Status rowToTop(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight, int rank)
+MPI_Status rowToTop(MPI_Comm comm, int fromRank, int toRank, float *grid, int localWidth, int localHeight)
 {
     return rowTo(comm, fromRank, toRank, localWidth - 2,
                  grid + getIndex(1, 1, localWidth),                  //sending row
@@ -209,17 +211,16 @@ MPI_Status colTo(MPI_Comm comm, int fromRank, int toRank, float *grid, int local
 {
     float sendingCol[localHeight - 2];
     float receivingCol[localHeight - 2];
-    for (int i=0; i<localHeight - 2; i++)
-    {
-        sendingCol[i] = grid[getIndex(sendingColIndex, i+1, localWidth)];
-    }
+
+    if (toRank != MPI_PROC_NULL)
+        for (int i=0; i<localHeight - 2; i++)
+            sendingCol[i] = grid[getIndex(sendingColIndex, i+1, localWidth)];
 
     MPI_Status status = rowTo(comm, fromRank, toRank, localHeight - 2, sendingCol, receivingCol, tag);
 
-    for (int i=0; i<localHeight - 2; i++)
-    {
-        grid[getIndex(receivingColIndex, i+1, localWidth)] = receivingCol[i];
-    }
+    if (fromRank != MPI_PROC_NULL)
+        for (int i=0; i<localHeight - 2; i++)
+            grid[getIndex(receivingColIndex, i+1, localWidth)] = receivingCol[i];
 
     return status;
 }
@@ -336,18 +337,19 @@ int main(int argc, char* argv[])
     bottomLeft = getNeighbour(comm, dims, coords[1], coords[0], -1, 1);
     bottomRight = getNeighbour(comm, dims, coords[1], coords[0], 1, 1);
 
-    if (rank == 1) printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
+    //if (rank == 1) printf("%d neighbours: %d, %d, %d, %d, %d, %d, %d, %d, %d\n", rank, topLeft, top, topRight, left, rank, right, bottomLeft, bottom, bottomRight);
 
     //add borders (either 0, or come from neighbour)
-    int localWidth = toX - fromX + 2;
-    int localHeight = toY - fromY + 2;
+    int localWidth = toX - fromX + 3;
+    int localHeight = toY - fromY + 3;
     //don't use smaller grid for last rank, as this would make transferring back to root difficult
-    int nonCutLocalWidth = nonCutToX - fromX + 2;
-    int nonCutLocalHeight = nonCutToY - fromY + 2;
-    float localGridA[nonCutLocalWidth * nonCutLocalHeight];
-    float localGridB[nonCutLocalWidth * nonCutLocalHeight];
-    fill_n(localGridA, nonCutLocalWidth * nonCutLocalHeight, 0.f);
-    fill_n(localGridB, nonCutLocalWidth * nonCutLocalHeight, 0.f);
+    int nonCutLocalWidth = nonCutToX - fromX + 3;
+    int nonCutLocalHeight = nonCutToY - fromY + 3;
+    int nonCutLocalSize = nonCutLocalHeight * nonCutLocalWidth;
+    float localGridA[nonCutLocalSize];
+    float localGridB[nonCutLocalSize];
+    fill_n(localGridA, nonCutLocalSize, 0.f);
+    fill_n(localGridB, nonCutLocalSize, 0.f);
 
     //find local hotspots
     vector<int> localHotspots;
@@ -361,7 +363,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    printf("%d (%d,%d) has %d hotspots\n", rank, coords[1], coords[0], localHotspots.size() / 3);
+    //printf("%d (%d,%d) has %d hotspots\n", rank, coords[1], coords[0], localHotspots.size() / 3);
 
     float *previous = localGridA;
     float *current = localGridB;
@@ -382,9 +384,12 @@ int main(int argc, char* argv[])
         cellTo(comm, topLeft, bottomRight, current, nonCutLocalWidth, nonCutLocalWidth - 2, nonCutLocalHeight - 2, 0, 0, 9); // to bottom right
 
 
-        if (rank == 0) {
-            for (int y=0; y<nonCutLocalHeight; y++) {
-                for (int x=0; x<nonCutLocalWidth; x++) {
+        if (rank == 0)
+        {
+            for (int y=0; y<nonCutLocalHeight; y++)
+            {
+                for (int x=0; x<nonCutLocalWidth; x++)
+                {
                     cout << getOutputValue(current[getIndex(x, y, nonCutLocalWidth)]) << " ";
                 }
                 cout << "\n";
@@ -426,18 +431,17 @@ int main(int argc, char* argv[])
     {
         //transfer data back to root
         float *resultGrid;
-        int resultGridSize = nonCutLocalHeight*nonCutLocalWidth*numprocessors;
-        if (rank == 0)
-        {
-            resultGrid = new float[resultGridSize];
-        }
+        int resultGridSize = nonCutLocalSize*numprocessors;
+        if (rank == 0) resultGrid = new float[resultGridSize];
 
         //row major probably -> x's should be directly next to each other
-        MPI_Gather(current, nonCutLocalHeight*nonCutLocalWidth, MPI_FLOAT,
-                  resultGrid, resultGridSize, MPI_FLOAT, 0, comm);
+        MPI_Gather(current, nonCutLocalSize, MPI_FLOAT,
+                   resultGrid, nonCutLocalSize, MPI_FLOAT, 0, comm);
 
         if (rank == 0)
         {
+            int xMax = 0;
+            int yMax = 0;
             for (int yProc=0; yProc<dims[0]; yProc++)
             {
                 for (int yItem=1; yItem<nonCutLocalHeight-1; yItem++)
@@ -449,6 +453,8 @@ int main(int argc, char* argv[])
                             int y = yProc * nonCutLocalHeight + yItem - 1;
                             int x = xProc * nonCutLocalWidth + xItem - 1;
                             if (x >= width || y >= height) continue;
+
+                            printf("(%d,%d)\n", x, y);
                             string out = getOutputValue(resultGrid[
                                                             yProc * (localWidth * localHeight * dims[1])
                                                             + xProc * (localWidth * localHeight)
@@ -472,16 +478,23 @@ int main(int argc, char* argv[])
             int y = outputCoords[i+1];
             float value;
 
-            if (rank == 0) {
-                if (x >= fromX && x <= toX && y >= fromY && y <= toY) {
+            if (rank == 0)
+            {
+                if (x >= fromX && x <= toX && y >= fromY && y <= toY)
+                {
                     value = current[getIndex(x - fromX - 1, y - fromY - 1, localWidth)];
-                } else {
+                }
+                else
+                {
                     MPI_Status status;
                     MPI_Recv(&value, 1, MPI_FLOAT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
                 }
                 *output << value <<"\n";
-            } else {
-                if (x >= fromX && x <= toX && y >= fromY && y <= toY) {
+            }
+            else
+            {
+                if (x >= fromX && x <= toX && y >= fromY && y <= toY)
+                {
                     MPI_Send(current + getIndex(x - fromX - 1, y - fromY - 1, localWidth), 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
                 }
             }
